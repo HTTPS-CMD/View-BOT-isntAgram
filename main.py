@@ -1,6 +1,6 @@
 import os
 import json
-from create_account import create_fake_accounts, save_accounts
+from create_accounts import create_fake_accounts, save_accounts
 from login_all import load_accounts, login_with_account
 from watch_video_parallel import main as watch_parallel
 from assign_proxies import assign_proxies_to_accounts
@@ -13,40 +13,40 @@ os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(COOKIES_DIR, exist_ok=True)
 
 def step_create_accounts():
-    count = int(input("🔹 چند اکانت می‌خوای بسازم؟ "))
+    count = int(input("How many accounts you want to create?"))
     accounts = create_fake_accounts(count)
     save_accounts(accounts)
-    print(f"✅ {count} اکانت ساخته شد و در {ACCOUNTS_FILE} ذخیره شد.")
+    print(f"✅ {count} Account created and saved in {ACCOUNTS_FILE}.")
 
 def step_assign_proxies():
     if not os.path.exists(ACCOUNTS_FILE):
-        print("❌ فایل اکانت‌ها موجود نیست.")
+        print("Proxies file not found!")
         return
     assign_proxies_to_accounts(ACCOUNTS_FILE)
-    print("✅ پروکسی‌ها به اکانت‌ها اختصاص داده شد.")
+    print("Proxies assigned successfully!")
 
 def step_login_all():
     if not os.path.exists(ACCOUNTS_FILE):
-        print("❌ فایل اکانت‌ها موجود نیست.")
+        print("Account's file not found!")
         return
     accounts = load_accounts()
     for acc in accounts:
         login_with_account(acc)
-    print("✅ لاگین همه اکانت‌ها انجام شد و کوکی‌ها ذخیره شدند.")
+    print("All accounts logged in successfully, coockies are saved")
 
 def step_watch_videos_parallel():
-    print("▶️ شروع تماشای ویدیوها به صورت موازی...")
+    print("Proccess watching using multiple threads")
     watch_parallel()
-    print("✅ عملیات تماشای ویدیوها تمام شد.")
+    print("Done watching videos")
 
 if __name__ == "__main__":
     while True:
         print("\n===== Instagram Automation Menu =====")
-        print("1. ساخت اکانت‌های فیک")
-        print("2. اختصاص پروکسی به اکانت‌ها")
-        print("3. لاگین همه اکانت‌ها و ذخیره کوکی")
-        print("4. تماشای ویدیوها به صورت موازی")
-        print("0. خروج")
+        print("1. Create fake accounts")
+        print("2. Assign proxies")
+        print("3. Log-in all accounts and save cookies.")
+        print("4. Watch videos at tha same time ")
+        print("0. exit")
         
         choice = input("انتخاب شما: ")
 
