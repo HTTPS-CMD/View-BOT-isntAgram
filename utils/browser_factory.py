@@ -1,7 +1,7 @@
 import undetected_chromedriver as uc
 
-if proxy:
-    options.add_argument(f"--proxy-server={proxy}")
+# if proxy:
+#     options.add_argument(f"--proxy-server={proxy}")
 
 def create_browser(proxy=None, headless=False):
     options = uc.ChromeOptions()
