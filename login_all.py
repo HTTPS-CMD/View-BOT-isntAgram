@@ -9,6 +9,10 @@ from selenium.webdriver.common.keys import Keys
 ACCOUNTS_FILE = "data/accounts.json"
 COOKIES_DIR = "data/cookies"
 
+#TODO: Check the signup options!?
+#! If we need to sign up we have to pass the capthcha at least! birthday and varificaion code problems exitst!
+
+
 # Ensure cookies directory exists
 os.makedirs(COOKIES_DIR, exist_ok=True)
 
