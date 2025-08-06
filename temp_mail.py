@@ -1,95 +1,93 @@
-import random
-import re
-import string
-import time
-
 import requests
+import time
+import re
+import random
+import string
 from loguru import logger
 
-# Cloudflare Worker proxy
-CLOUDFLARE_PROXY = "https://purple-wood-7c5f.m-gha5785.workers.dev/?url="
-API_1SECMAIL = "https://www.1secmail.com/api/v1/"
+BASE_URL = "https://api.mail.tm"
 
-def cf_request(url: str):
-    """Send request through Cloudflare Worker proxy."""
-    try:
-        r = requests.get(CLOUDFLARE_PROXY + url, timeout=10)
-        if r.status_code == 200 and r.text.strip():
-            return r.json()
-    except Exception as e:
-        logger.error(f"{e}")
-    else:
-        return None
+def create_mailtm_account():
+    """ایجاد اکانت موقت Mail.tm و دریافت توکن JWT"""
+    # دریافت دامین فعال
+    domain_resp = requests.get(f"{BASE_URL}/domains")
+    domain_resp.raise_for_status()
+    domain = domain_resp.json()["hydra:member"][0]["domain"]
 
-def direct_request(url: str):
-    """Fallback request directly to API if proxy fails."""
-    try:
-        r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
-        if r.status_code == 200 and r.text.strip():
-            return r.json()
-    except Exception as e:
-        logger.error(f"{e}")
-    else:
-        return None
+    # ساخت ایمیل و پسورد
+    username = "user" + "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    email = f"{username}@{domain}"
+    password = "Pass" + "".join(random.choices(string.ascii_letters + string.digits, k=6)) + "!"
 
-def safe_get_json(url: str):
-    """Try Cloudflare first, fallback to direct request."""
-    return cf_request(url) or direct_request(url) or []
+    # ایجاد اکانت
+    data = {"address": email, "password": password}
+    resp = requests.post(f"{BASE_URL}/accounts", json=data)
+    if resp.status_code not in [200, 201]:
+        logger.error(f"❌ Account creation failed: {resp.text}")
+        return None, None, None
 
-def generate_1sec_email() -> str:
-    """Generate a random temporary email from 1secmail."""
-    user = "".join(random.choices(string.ascii_lowercase + string.digits, k=10))
-    domain = random.choice(["1secmail.com", "1secmail.net", "1secmail.org"])
-    return f"{user}@{domain}"
+    # گرفتن توکن
+    token_resp = requests.post(f"{BASE_URL}/token", json=data)
+    token_resp.raise_for_status()
+    token = token_resp.json()["token"]
 
-def get_1sec_messages(email: str):
-    """Fetch inbox messages for a given temp email."""
-    login, domain = email.split("@")
-    return safe_get_json(f"{API_1SECMAIL}?action=getMessages&login={login}&domain={domain}")
+    logger.success(f"✅ Temporary Mail.tm account created: {email}")
+    return email, password, token
 
-def read_1sec_message(email: str, msg_id: int):
-    """Read a specific message by ID."""
-    login, domain = email.split("@")
-    return safe_get_json(f"{API_1SECMAIL}?action=readMessage&login={login}&domain={domain}&id={msg_id}")
+def get_mailtm_messages(token):
+    """دریافت لیست پیام‌های صندوق ورودی"""
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(f"{BASE_URL}/messages", headers=headers)
+    if resp.status_code != 200:
+        logger.error(f"❌ Failed to fetch messages: {resp.text}")
+        return []
+    return resp.json().get("hydra:member", [])
 
-def extract_verification_code(text: str):
-    """Extract a 6-digit verification code from message text."""
+def read_mailtm_message(token, msg_id):
+    """خواندن محتوای پیام مشخص"""
+    headers = {"Authorization": f"Bearer {token}"}
+    resp = requests.get(f"{BASE_URL}/messages/{msg_id}", headers=headers)
+    if resp.status_code != 200:
+        logger.error(f"❌ Failed to read message: {resp.text}")
+        return {}
+    return resp.json()
+
+def extract_code(text):
+    """استخراج کد 6 رقمی از متن"""
     match = re.search(r"\b\d{6}\b", text)
     return match.group(0) if match else None
 
-def wait_for_code(email: str, sender_filter="instagram.com", timeout=180):
-    """Wait until a verification email arrives and extract the code.
-
-    :param email: Temporary email address that will receive the verification code.
-    :type email: str
-    :param sender_filter: Expected sender's domain or email, defaults to "instagram.com".
-    :type sender_filter: str, optional
-    :param timeout: Maximum time (in seconds) the function will wait for the verification code, defaults to 180.
-    :type timeout: int, optional
-    :return: 6-digit verification code if found, otherwise None.
-    :rtype: str or None
-    """
+def wait_for_mailtm_code(token, timeout=180):
+    """منتظر دریافت کد تایید از اینستاگرام می‌ماند"""
     start = time.time()
-    logger.success(f"Waiting for message from {sender_filter} for {email}...")
+    logger.info("⌛ Waiting for Instagram verification email...")
 
     while time.time() - start < timeout:
-        messages = get_1sec_messages(email) or []
+        messages = get_mailtm_messages(token)
         for msg in messages:
-            if sender_filter in msg.get("from", ""):
-                logger.success(f"Message found: {msg['subject']}")
-                content = read_1sec_message(email, msg["id"])
-                code = extract_verification_code(content.get("body", ""))
+            if "instagram" in msg.get("from", {}).get("address", "").lower():
+                logger.success(f"📩 Message received: {msg['subject']}")
+                content = read_mailtm_message(token, msg["id"])
+                body = content.get("text", "")
+                if isinstance(body, list):  # بعضی وقتا text به صورت لیست میاد
+                    body = "\n".join(body)
+                code = extract_code(body + content.get("html", ""))
                 if code:
-                    logger.success(f"Code: {code}")
+                    logger.success(f"✅ Verification code: {code}")
                     return code
         time.sleep(5)
 
-    logger.error("❌ No verification code received.")
+    logger.error("❌ No verification code received in time.")
     return None
 
+
+# --- تست مستقیم ---
 if __name__ == "__main__":
-    email = generate_1sec_email()
-    logger.success(f"Temp email: {email}")
-    code = wait_for_code(email)
+    email, password, token = create_mailtm_account()
+    if not token:
+        exit(1)
+
+    print(f"Temporary Email: {email}")
+    code = wait_for_mailtm_code(token)
     if code:
-        logger.success(f"Final Code: {code}")
+        print(f"Final Verification Code: {code}")
