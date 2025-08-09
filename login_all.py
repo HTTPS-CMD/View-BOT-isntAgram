@@ -2,16 +2,12 @@ import json
 import os
 import time
 import random
-import undetected_chromedriver as uc
+from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
 ACCOUNTS_FILE = "data/accounts.json"
 COOKIES_DIR = "data/cookies"
-
-#TODO: Check the signup options!?
-#! If we need to sign up we have to pass the capthcha at least! birthday and varificaion code problems exitst!
-
 
 # Ensure cookies directory exists
 os.makedirs(COOKIES_DIR, exist_ok=True)
@@ -30,18 +26,8 @@ def save_cookies(driver, username):
 def login_with_account(account):
     print(f"⏳ Logging in: {account['username']}")
 
-    options = uc.ChromeOptions()
-    options.add_argument("--no-first-run")
-    options.add_argument("--no-service-autorun")
-    options.add_argument("--password-store=basic")
-    options.add_argument("--disable-notifications")
-    options.add_argument("--disable-infobars")
-
-    # Optional: attach proxy if available
-    if account.get("proxy"):
-        options.add_argument(f'--proxy-server={account["proxy"]}')
-
-    driver = uc.Chrome(options=options)
+    # Initialize Safari WebDriver
+    driver = webdriver.Safari()
 
     try:
         driver.get("https://www.instagram.com/accounts/login/")
