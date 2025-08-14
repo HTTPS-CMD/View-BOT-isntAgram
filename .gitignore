@@ -180,3 +180,6 @@ ruff.toml
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+# Project data files to ignore
+data/accounts.json
+data/cookies/
