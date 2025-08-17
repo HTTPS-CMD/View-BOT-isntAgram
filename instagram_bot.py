@@ -4,6 +4,8 @@ import time
 import shutil
 from datetime import datetime
 from time import sleep
+import json
+import os
 
 from loguru import logger
 from selenium import webdriver
@@ -25,6 +27,28 @@ def select_dropdown(driver, xpath, value):
         logger.success(f"✅ Selected value {value} for dropdown {xpath}")
     except Exception as e:
         logger.error(f"⚠️ Failed to select dropdown {xpath} with value {value}: {e}")
+
+def save_account(username, password, email):
+    data_path = "data/accounts.json"
+    os.makedirs(os.path.dirname(data_path), exist_ok=True)
+    accounts = []
+    if os.path.exists(data_path):
+        try:
+            with open(data_path, "r", encoding="utf-8") as f:
+                accounts = json.load(f)
+        except Exception as e:
+            logger.error(f"⚠️ Failed to read accounts JSON file: {e}")
+    accounts.append({
+        "username": username,
+        "password": password,
+        "email": email
+    })
+    try:
+        with open(data_path, "w", encoding="utf-8") as f:
+            json.dump(accounts, f, indent=4, ensure_ascii=False)
+        logger.success(f"✅ Account saved to {data_path}")
+    except Exception as e:
+        logger.error(f"⚠️ Failed to save account to JSON file: {e}")
 
 
 def get_driver():
@@ -158,6 +182,8 @@ class InstagramBot:
             input_box = d.find_element(By.XPATH, "//input[@name='email_confirmation_code']")
             input_box.send_keys(manual_code)
             self.safe_click("//button[contains(text(),'Confirm')]")
+
+        save_account(self.username, self.password, self.phone_number)
 
         sleep(7)
 
