@@ -1,22 +1,38 @@
-import random
-import string
-import time
-import shutil
-from datetime import datetime
-from time import sleep
 import json
 import os
+import random
+import shutil
+import string
+from time import sleep
 
 from loguru import logger
 from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait, Select
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.safari.service import Service as SafariService
 from selenium.common.exceptions import WebDriverException
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import Select, WebDriverWait
 
 from temp_mail import create_mailtm_account, wait_for_mailtm_code  # فایل temp_mail.py که ساختی
 
+NAMES = [
+    "Alice Johnson",
+    "Michael Smith",
+    "Emily Davis",
+    "James Brown",
+    "Olivia Wilson",
+    "Daniel Martinez",
+    "Sophia Anderson",
+    "David Thomas",
+    "Isabella Taylor",
+    "Matthew Moore",
+]
+
+def generate_username(fullname):
+    base = "".join(fullname.lower().split())
+    suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=3))
+    return base + suffix
 
 def select_dropdown(driver, xpath, value):
     try:
@@ -34,14 +50,14 @@ def save_account(username, password, email):
     accounts = []
     if os.path.exists(data_path):
         try:
-            with open(data_path, "r", encoding="utf-8") as f:
+            with open(data_path, encoding="utf-8") as f:
                 accounts = json.load(f)
         except Exception as e:
             logger.error(f"⚠️ Failed to read accounts JSON file: {e}")
     accounts.append({
         "username": username,
         "password": password,
-        "email": email
+        "email": email,
     })
     try:
         with open(data_path, "w", encoding="utf-8") as f:
@@ -50,15 +66,30 @@ def save_account(username, password, email):
     except Exception as e:
         logger.error(f"⚠️ Failed to save account to JSON file: {e}")
 
+def human_typing(element, text, min_delay=0.1, max_delay=0.3):
+    for char in text:
+        element.send_keys(char)
+        sleep(random.uniform(min_delay, max_delay))
+
+def human_sleep(min_t=1, max_t=3):
+    sleep(random.uniform(min_t, max_t))
 
 def get_driver():
     try:
-        safari_service = SafariService()
-        driver = webdriver.Safari(service=safari_service)
-        logger.success("✅ Safari WebDriver started successfully.")
+        chrome_options = Options()
+        chrome_options.add_argument(
+            "user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) "
+            "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15A372 Safari/604.1",
+        )
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_argument("--incognito")
+
+        service = ChromeService()
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        logger.success("✅ Chrome WebDriver with Mobile User-Agent started successfully.")
         return driver
     except WebDriverException as e:
-        logger.error(f"❌ Safari WebDriver not available: {e}")
+        logger.error(f"❌ Chrome WebDriver not available: {e}")
         exit(1)
 
 
@@ -81,8 +112,8 @@ class InstagramBot:
                 exit(1)
             self.phone_number = mail_data[0]  # ایمیل
             self.token = mail_data[2]         # توکن
-            self.fullname = "Auto User"
-            self.username = "user_" + "".join(random.choices(string.ascii_lowercase + string.digits, k=8))
+            self.fullname = random.choice(NAMES)
+            self.username = generate_username(self.fullname)
             self.password = "".join(random.choices(string.ascii_letters + string.digits, k=12))
             self.day = str(random.randint(1, 28))
             self.month = str(random.randint(1, 12))
@@ -137,18 +168,18 @@ class InstagramBot:
     def create_account(self):
         d = self.driver
         d.get("https://www.instagram.com/accounts/emailsignup/")
-        sleep(2)
+        human_sleep(2)
 
         self.handle_cookie_popup()
-        sleep(1)
+        human_sleep(1)
 
-        d.find_element(By.NAME, "emailOrPhone").send_keys(self.phone_number)
-        d.find_element(By.NAME, "fullName").send_keys(self.fullname)
-        d.find_element(By.NAME, "username").send_keys(self.username)
-        d.find_element(By.NAME, "password").send_keys(self.password)
+        human_typing(d.find_element(By.NAME, "emailOrPhone"), self.phone_number)
+        human_typing(d.find_element(By.NAME, "fullName"), self.fullname)
+        human_typing(d.find_element(By.NAME, "username"), self.username)
+        human_typing(d.find_element(By.NAME, "password"), self.password)
 
         self.safe_click("//button[@type='submit']")
-        sleep(3)
+        human_sleep(3)
 
         self.wait_for_captcha_and_manual_solve()
 
@@ -157,7 +188,7 @@ class InstagramBot:
         select_dropdown(d, "(//select)[3]", self.year)
 
         self.safe_click("//button[contains(text(),'Next')]")
-        sleep(5)
+        human_sleep(5)
 
         if self.token:
             code = wait_for_mailtm_code(self.token)
@@ -185,7 +216,34 @@ class InstagramBot:
 
         save_account(self.username, self.password, self.phone_number)
 
-        sleep(7)
+        # تغییر بیو
+        try:
+            d.get("https://www.instagram.com/accounts/edit/")
+            human_sleep(3, 6)
+            bio_box = WebDriverWait(d, 15).until(EC.element_to_be_clickable((By.NAME, "biography")))
+            bio_box.clear()
+            human_typing(bio_box, "Love traveling ✈️ | Coffee addict ☕️")
+            human_sleep(1, 3)
+            save_btn = d.find_element(By.XPATH, "//button[contains(text(),'Submit')]")
+            save_btn.click()
+            logger.success("✅ Bio updated successfully.")
+        except Exception as e:
+            logger.error(f"⚠️ Failed to update bio: {e}")
+
+        # لایک یک پست در Explore
+        try:
+            d.get("https://www.instagram.com/explore/")
+            human_sleep(5, 8)
+            first_post = WebDriverWait(d, 15).until(EC.element_to_be_clickable((By.XPATH, "(//article//a)[1]")))
+            first_post.click()
+            human_sleep(3, 5)
+            like_btn = WebDriverWait(d, 15).until(EC.element_to_be_clickable((By.XPATH, "//span[@aria-label='Like']")))
+            like_btn.click()
+            logger.success("✅ Liked a post successfully.")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not like a post: {e}")
+
+        human_sleep(7)
 
     def close(self):
         try:
