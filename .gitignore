@@ -1,8 +1,8 @@
 /data
 __pycache__
-.DS_Store
-.D*
-../DS_Store
+.DS_Store/
 data/
 .vscode
 ruff.toml
+.DS_Store
+**/.DS_Store
