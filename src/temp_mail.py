@@ -68,10 +68,17 @@ def wait_for_mailtm_code(token, timeout=180):
             if "instagram" in msg.get("from", {}).get("address", "").lower():
                 logger.success(f"📩 Message received: {msg['subject']}")
                 content = read_mailtm_message(token, msg["id"])
+                
+                # اصلاح: متن و HTML را بررسی و لیست‌ها را به string تبدیل می‌کنیم
                 body = content.get("text", "")
-                if isinstance(body, list):  # بعضی وقتا text به صورت لیست میاد
+                if isinstance(body, list):
                     body = "\n".join(body)
-                code = extract_code(body + content.get("html", ""))
+
+                html_content = content.get("html", "")
+                if isinstance(html_content, list):
+                    html_content = "".join(html_content)
+
+                code = extract_code(body + html_content)
                 if code:
                     logger.success(f"✅ Verification code: {code}")
                     return code
@@ -79,7 +86,6 @@ def wait_for_mailtm_code(token, timeout=180):
 
     logger.error("❌ No verification code received in time.")
     return None
-
 
 # --- تست مستقیم ---
 if __name__ == "__main__":
