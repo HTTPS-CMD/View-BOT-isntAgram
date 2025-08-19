@@ -13,7 +13,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 
-from temp_mail import create_mailtm_account, wait_for_mailtm_code
+from temp_mail import create_mailtm_account, wait_for_mailtm_code  # نسخه قدیمی تو
 
 NAMES = [
     "Alice Johnson",
@@ -148,7 +148,7 @@ class InstagramBot:
         )
         human_typing(email_field, self.phone_number)
 
-        # 🔹 کلیک روی Next واقعی بعد از ایمیل
+        # 🔹 کلیک روی Next بعد از ایمیل
         next_btn = WebDriverWait(d, 10).until(
             EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']"))
         )
@@ -156,33 +156,30 @@ class InstagramBot:
         human_sleep(2)
         logger.success("✅ Email entered and Next clicked.")
 
-        # 🔹 وارد کردن آخرین کد تایید ایمیل سریع و معتبر
+        # 🔹 دریافت و وارد کردن آخرین کد معتبر
         if self.token:
             code = None
             start_time = time.time()
             timeout = 180
             while time.time() - start_time < timeout:
-                latest_code = wait_for_mailtm_code(self.token, timeout=5)  # آخرین پیام سریع
+                latest_code = wait_for_mailtm_code(self.token, timeout=5)
                 if latest_code:
                     code = latest_code
                     break
                 human_sleep(1, 2)
             
             if code:
-                code_fields = d.find_elements(By.XPATH, "//input[@aria-label='Confirmation code']")
-                code_field = next((f for f in code_fields if f.is_enabled() and f.is_displayed()), None)
-                if code_field:
-                    human_sleep(1.5, 2.5)
-                    code_field.clear()
-                    human_typing(code_field, code)
-                    next_btn2 = WebDriverWait(d, 10).until(
-                        EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']"))
-                    )
-                    human_sleep(1, 2)
-                    next_btn2.click()
-                    logger.success(f"✅ Confirmation code {code} entered and Next clicked.")
-                else:
-                    logger.error("⚠️ Confirmation code input not found!")
+                code_field = WebDriverWait(d, 15).until(
+                    EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Confirmation code']"))
+                )
+                code_field.clear()
+                human_typing(code_field, code)
+                next_btn2 = WebDriverWait(d, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']"))
+                )
+                human_sleep(1, 2)
+                next_btn2.click()
+                logger.success(f"✅ Confirmation code {code} entered and Next clicked.")
             else:
                 logger.error("❌ No valid verification code received in time!")
 
@@ -232,19 +229,20 @@ class InstagramBot:
         next_btn.click()
         human_sleep(1.5, 2.5)
 
-        # 🔹 I agree
-        agree_btn = WebDriverWait(d, 15).until(
+        iagree_btn = WebDriverWait(d, 10).until(
             EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='I agree']"))
         )
-        agree_btn.click()
-        human_sleep(2, 3)
-        logger.success("✅ Account setup completed!")
+        iagree_btn.click()
+        human_sleep(2)
+
+        logger.success("✅ Account setup steps completed!")
 
     def close(self):
         try:
             self.driver.quit()
         except:
             pass
+
 
 if __name__ == "__main__":
     logger.success("🚀 Starting Instagram account creation...")
