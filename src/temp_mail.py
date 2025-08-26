@@ -1,100 +1,171 @@
-import requests
+# temp_mail.py
 import time
 import re
 import random
 import string
 from loguru import logger
 
-BASE_URL = "https://www.1secmail.com/api/v1/"
+import cloudscraper  # pip install cloudscraper
 
+MAILDROP_BASE = "https://maildrop.cc/api"
+
+# یک اسکرِیپر جهانی با سشن پایدار
+_scraper = cloudscraper.create_scraper(
+    browser={
+        "browser": "chrome",
+        "platform": "windows",
+        "mobile": False,
+    },
+    delay=10,  # تاخیر برای چالش‌های CF اگر نیاز باشد
+)
+
+def _rand_str(n=8, alphabet=None):
+    import secrets
+    if alphabet is None:
+        alphabet = string.ascii_lowercase + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(n))
+
+def _ensure_text(x):
+    if x is None:
+        return ""
+    if isinstance(x, str):
+        return x
+    if isinstance(x, list):
+        return "\n".join(_ensure_text(i) for i in x)
+    if isinstance(x, dict):
+        parts = []
+        for k in ("address", "name", "email", "subject"):
+            if k in x and x[k]:
+                parts.append(str(x[k]))
+        if not parts:
+            parts = [str(v) for v in x.values() if v is not None]
+        return "\n".join(parts)
+    return str(x)
+
+def extract_code(text):
+    if not text:
+        return None
+    patterns = [
+        r"(?:instagram[^.\n]{0,40})?(?:confirmation|security)?\s*code[^\d]{0,20}(\d{6})",
+        r"(?:your\s+code\s+is[^\d]{0,20})(\d{6})",
+        r"(?<!\d)(\d{6})(?!\d)",
+    ]
+    low = text.lower()
+    for pat in patterns:
+        m = re.search(pat, low, flags=re.IGNORECASE)
+        if m:
+            return m.group(1) if m.lastindex else m.group(0)
+    return None
+
+def _md_local_from_email(email: str) -> str:
+    return email.split("@", 1)[0]
+
+def _md_get_messages(local: str):
+    url = f"{MAILDROP_BASE}/inbox/{local}"
+    try:
+        resp = _scraper.get(url, timeout=20)
+        if resp.status_code != 200:
+            logger.error(f"❌ Maildrop inbox fetch failed {resp.status_code}: {resp.text[:200]}")
+            return []
+        data = resp.json() or {}
+        messages = data.get("messages") or []
+        normalized = []
+        for m in messages:
+            normalized.append({
+                "id": m.get("id"),
+                "subject": m.get("subject", ""),
+                "from": {"address": m.get("from", "")},
+                "createdAt": 0,
+            })
+        return normalized
+    except Exception as e:
+        logger.error(f"❌ Maildrop get messages error: {e}")
+        return []
+
+def _md_read_message(local: str, msg_id: str):
+    url = f"{MAILDROP_BASE}/message/{local}/{msg_id}"
+    try:
+        resp = _scraper.get(url, timeout=20)
+        if resp.status_code != 200:
+            logger.error(f"❌ Maildrop read message failed {resp.status_code}: {resp.text[:200]}")
+            return {}
+        data = resp.json() or {}
+        return {
+            "subject": data.get("subject", ""),
+            "text": data.get("body", "") or "",
+            "html": "",
+            "from": {"address": data.get("from", "")},
+        }
+    except Exception as e:
+        logger.error(f"❌ Maildrop read message error: {e}")
+        return {}
+
+# Public API (names preserved)
 def create_mailtm_account():
-    """ایجاد ایمیل موقت با 1secmail و دریافت اطلاعات"""
-    username = "user" + "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
-    domain = random.choice(["1secmail.com", "1secmail.net", "1secmail.org"])
-    email = f"{username}@{domain}"
-    password = "".join(random.choices(string.ascii_letters + string.digits, k=12))  # صرفاً placeholder
-
-    logger.success(f"✅ Temporary 1secmail account created: {email}")
-    token = (username, domain)  # برای 1secmail، token همان username+domain است
+    local = "user" + _rand_str(10)
+    email = f"{local}@maildrop.cc"
+    password = _rand_str(12)
+    token = {"provider": "maildrop", "email": email, "local": local}
+    logger.success(f"✅ Maildrop inbox ready: {email}")
     return email, password, token
 
 def get_mailtm_messages(token):
-    """لیست پیام‌ها را دریافت می‌کند"""
-    username, domain = token
-    params = {"action": "getMessages", "login": username, "domain": domain}
-    resp = requests.get(BASE_URL, params=params)
-    if resp.status_code != 200:
-        logger.error(f"❌ Failed to fetch messages: {resp.text}")
+    if not isinstance(token, dict) or token.get("provider") != "maildrop":
+        logger.error("❌ Invalid token: expected dict with provider='maildrop'")
         return []
-    return resp.json()
+    return _md_get_messages(token["local"])
 
 def read_mailtm_message(token, msg_id):
-    """خواندن محتوای پیام مشخص"""
-    username, domain = token
-    params = {"action": "readMessage", "login": username, "domain": domain, "id": msg_id}
-    resp = requests.get(BASE_URL, params=params)
-    if resp.status_code != 200:
-        logger.error(f"❌ Failed to read message: {resp.text}")
+    if not isinstance(token, dict) or token.get("provider") != "maildrop":
+        logger.error("❌ Invalid token: expected dict with provider='maildrop'")
         return {}
-    return resp.json()
+    return _md_read_message(token["local"], msg_id)
 
-def extract_code(text):
-    """استخراج کد 6 رقمی از متن"""
-    if not text:
+def wait_for_mailtm_code(token, max_retries=3, timeout=180, poll_interval=3, not_before_ts=None):
+    if not isinstance(token, dict) or token.get("provider") != "maildrop":
+        logger.error("❌ Invalid token: expected dict with provider='maildrop'")
         return None
-    match = re.search(r"\b\d{6}\b", text)
-    return match.group(0) if match else None
 
-def wait_for_mailtm_code(token, max_retries=3, timeout=180):
-    """
-    دریافت کد اینستاگرام و نمایش در ترمینال.
-    کاربر خودش کد را وارد می‌کند.
-    """
     start = time.time()
-    logger.info("⌛ Waiting for Instagram verification email...")
-
-    last_checked_id = None
+    seen_ids = set()
+    logger.info("⌛ Waiting for verification email (Maildrop)…")
 
     while time.time() - start < timeout:
-        messages = get_mailtm_messages(token)
-        instagram_msgs = [
-            m for m in messages if "instagram" in m.get("from", "").lower()
-        ]
-        if not instagram_msgs:
-            time.sleep(3)
+        msgs = get_mailtm_messages(token)
+        if not isinstance(msgs, list):
+            time.sleep(poll_interval)
             continue
 
-        latest_msg = instagram_msgs[0]
-        if latest_msg["id"] == last_checked_id:
-            time.sleep(2)
-            continue
-        last_checked_id = latest_msg["id"]
+        def is_instagram(m):
+            subj = _ensure_text(m.get("subject", "")).lower()
+            frm = _ensure_text((m.get("from") or {}).get("address", "")).lower()
+            return ("instagram" in subj) or ("instagram" in frm) or ("code" in subj)
 
-        content = read_mailtm_message(token, latest_msg["id"])
-        body = content.get("textBody", "")
-        html = content.get("htmlBody", "")
+        candidates = [m for m in msgs if is_instagram(m)] or msgs
 
-        combined_text = (body or "") + (html or "")
-        code = extract_code(combined_text)
+        for m in candidates:
+            mid = m.get("id")
+            if not mid or mid in seen_ids:
+                continue
 
-        if code:
-            logger.success(f"📩 Verification code received: {code}")
-            print(f"\n💡 Instagram verification code: {code}")
-            input("➡️ Enter the code manually in Instagram and press Enter here to continue...")
-            return code
+            content = read_mailtm_message(token, mid)
+            subj = _ensure_text(content.get("subject") or m.get("subject") or "")
+            body = _ensure_text(content.get("text") or "")
+            combined = "\n".join(filter(None, [subj, body]))
+            code = extract_code(combined)
+            seen_ids.add(mid)
 
-        time.sleep(3)
+            if code:
+                logger.success(f"📩 Verification code received: {code}")
+                return code
 
-    logger.error("❌ No valid Instagram verification code received in time.")
+        time.sleep(max(2, poll_interval))
+
+    logger.error("❌ No valid verification code received in time.")
     return None
 
-# --- تست مستقیم ---
 if __name__ == "__main__":
     email, password, token = create_mailtm_account()
-    if not token:
-        exit(1)
-
-    print(f"Temporary Email: {email}")
-    code = wait_for_mailtm_code(token)
-    if code:
-        print(f"Final Verification Code: {code}")
+    print("Email (Maildrop):", email)
+    code = wait_for_mailtm_code(token, timeout=180, poll_interval=3)
+    print("Code:", code)

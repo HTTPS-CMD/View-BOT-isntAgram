@@ -1,7 +1,7 @@
-import random
-import string
-import shutil
 import os
+import random
+import shutil
+import string
 import time
 from time import sleep
 
@@ -10,10 +10,11 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 
-from temp_mail import create_mailtm_account, wait_for_mailtm_code  # نسخه قدیمی تو
+
+from temp_mail import create_mailtm_account, wait_for_mailtm_code
 
 NAMES = [
     "Alice Johnson",
@@ -45,7 +46,7 @@ def get_driver():
     chrome_options = Options()
     chrome_options.add_argument(
         "user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) "
-        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15A372 Safari/604.1"
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15A372 Safari/604.1",
     )
     chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_argument("--incognito")
@@ -142,40 +143,39 @@ class InstagramBot:
         self.handle_cookie_popup()
         human_sleep(1)
 
-        # 🔹 وارد کردن ایمیل
         email_field = WebDriverWait(d, 15).until(
-            EC.presence_of_element_located((By.XPATH, "//input[@aria-label='Email']"))
+            EC.presence_of_element_located((By.XPATH, "//input[@aria-label='Email']")),
         )
         human_typing(email_field, self.phone_number)
 
-        # 🔹 کلیک روی Next بعد از ایمیل
         next_btn = WebDriverWait(d, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']"))
+            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']")),
         )
         next_btn.click()
         human_sleep(2)
         logger.success("✅ Email entered and Next clicked.")
 
-        # 🔹 دریافت و وارد کردن آخرین کد معتبر
         if self.token:
             code = None
             start_time = time.time()
             timeout = 180
+
             while time.time() - start_time < timeout:
-                latest_code = wait_for_mailtm_code(self.token, timeout=5)
+                # Maildrop: کد را از طریق Selenium می‌گیریم
+                latest_code = wait_for_mailtm_code(self.token, d, timeout=8, poll_interval=3)
                 if latest_code:
                     code = latest_code
                     break
                 human_sleep(1, 2)
-            
+
             if code:
                 code_field = WebDriverWait(d, 15).until(
-                    EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Confirmation code']"))
+                    EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Confirmation code']")),
                 )
                 code_field.clear()
                 human_typing(code_field, code)
                 next_btn2 = WebDriverWait(d, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']"))
+                    EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']")),
                 )
                 human_sleep(1, 2)
                 next_btn2.click()
@@ -185,52 +185,52 @@ class InstagramBot:
 
         # 🔹 Password
         password_field = WebDriverWait(d, 15).until(
-            EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Password']"))
+            EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Password']")),
         )
         human_typing(password_field, self.password)
         next_btn = WebDriverWait(d, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']"))
+            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']")),
         )
         next_btn.click()
         human_sleep(1.5, 2.5)
 
         # 🔹 Birthday
         birthday_field = WebDriverWait(d, 15).until(
-            EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Birthday']"))
+            EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Birthday']")),
         )
         birthday_field.clear()
         birthday_field.send_keys(f"{int(self.year)}-{int(self.month):02}-{int(self.day):02}")
         next_btn = WebDriverWait(d, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']"))
+            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']")),
         )
         next_btn.click()
         human_sleep(1.5, 2.5)
 
         # 🔹 Full Name
         fullname_field = WebDriverWait(d, 15).until(
-            EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Full name']"))
+            EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Full name']")),
         )
         human_typing(fullname_field, self.fullname)
         next_btn = WebDriverWait(d, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']"))
+            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']")),
         )
         next_btn.click()
         human_sleep(1.5, 2.5)
 
         # 🔹 Username
         username_field = WebDriverWait(d, 15).until(
-            EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Username']"))
+            EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Username']")),
         )
         username_field.clear()
         human_typing(username_field, self.username)
         next_btn = WebDriverWait(d, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']"))
+            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']")),
         )
         next_btn.click()
         human_sleep(1.5, 2.5)
 
         iagree_btn = WebDriverWait(d, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='I agree']"))
+            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='I agree']")),
         )
         iagree_btn.click()
         human_sleep(2)
