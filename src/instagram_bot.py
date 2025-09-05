@@ -1,8 +1,7 @@
-import os
+# main.py (English logs - using mail.tm)
+
 import random
-import shutil
 import string
-import time
 from time import sleep
 
 from loguru import logger
@@ -10,23 +9,14 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-
+from selenium.webdriver.support import expected_conditions as EC
 
 from temp_mail import create_mailtm_account, wait_for_mailtm_code
 
 NAMES = [
-    "Alice Johnson",
-    "Michael Smith",
-    "Emily Davis",
-    "James Brown",
-    "Olivia Wilson",
-    "Daniel Martinez",
-    "Sophia Anderson",
-    "David Thomas",
-    "Isabella Taylor",
-    "Matthew Moore",
+    "Alice Johnson", "Michael Smith", "Emily Davis", "James Brown", "Olivia Wilson",
+    "Daniel Martinez", "Sophia Anderson", "David Thomas", "Isabella Taylor", "Matthew Moore"
 ]
 
 def generate_username(fullname):
@@ -46,196 +36,127 @@ def get_driver():
     chrome_options = Options()
     chrome_options.add_argument(
         "user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) "
-        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15A372 Safari/604.1",
+        "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15A372 Safari/604.1"
     )
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
     chrome_options.add_argument("--incognito")
-
     service = ChromeService()
     driver = webdriver.Chrome(service=service, options=chrome_options)
-    logger.success("✅ Chrome WebDriver with Mobile User-Agent started successfully.")
+    logger.success("✅ Chrome with mobile user agent started.")
     return driver
 
 class InstagramBot:
     def __init__(self):
-        mode = input("Do you want to be auto-generated or to write them yourself? (a/w):  ").lower()
-        if mode in ["w", "write"]:
-            self.phone_number = input("Phone_number or email:  ")
-            self.fullname = input("Fullname:  ")
-            self.username = input("Username:  ")
-            self.password = input("Password:  ")
-            d, m, y = input("Birth day: (D/M/Y) ").split("/")
-            self.day, self.month, self.year = d, m, y
-            self.token = None
-
-        elif mode in ["a", "auto", "auto-generated"]:
-            mail_data = create_mailtm_account()
-            if not mail_data:
-                logger.error("⚠️ Failed to create temporary email account.")
+        mode = input("Auto-generate (a) or write your own (w)?: ").strip().lower()
+        if mode in ["a", "auto"]:
+            email, password, token = create_mailtm_account()
+            if not all([email, password, token]):
+                logger.error("Account creation failed! Exiting.")
                 exit(1)
-            self.phone_number = mail_data[0]
-            self.token = mail_data[2]
+            self.email = email
+            self.token = token
+            self.password = password
             self.fullname = random.choice(NAMES)
             self.username = generate_username(self.fullname)
-            self.password = "".join(random.choices(string.ascii_letters + string.digits, k=12))
             self.day = str(random.randint(1, 28))
             self.month = str(random.randint(1, 12))
             self.year = str(random.randint(1960, 2005))
-            logger.success(f"Generated credentials:\nEmail: {self.phone_number}\nUsername: {self.username}\nPassword: {self.password}")
+            logger.success(
+                f"Generated:\nEmail: {self.email}\nUsername: {self.username}\nPassword: {self.password}"
+            )
         else:
-            logger.error("Invalid mode. Choose 'a' or 'w'.")
-            exit(1)
-
-        want_pic = input("Do you want to add a profile picture? (y/n) ").lower()
-        if want_pic in ["y", "yes"]:
-            try:
-                shutil.rmtree("C:\\Users\\lmoli\\Pictures\\Instagram profile image", ignore_errors=True)
-                os.makedirs("C:\\Users\\lmoli\\Pictures\\Instagram profile image", exist_ok=True)
-                location = input("Enter the path of your profile image:  ")
-                if location.lower() not in ["n", "no", ""]:
-                    shutil.move(location, "C:\\Users\\lmoli\\Pictures\\Instagram profile image\\descarga.jpg")
-            except Exception as e:
-                logger.error(f"⚠️ Failed to handle profile picture: {e}")
-
+            self.email = input("Email: ")
+            self.fullname = input("Full name: ")
+            self.username = input("Username: ")
+            self.password = input("Password: ")
+            d, m, y = input("Birthday (D/M/Y): ").split("/")
+            self.day, self.month, self.year = d, m, y
+            self.token = None
         self.driver = get_driver()
-
-    def safe_click(self, xpath):
-        try:
-            el = WebDriverWait(self.driver, 15).until(EC.element_to_be_clickable((By.XPATH, xpath)))
-            self.driver.execute_script("arguments[0].scrollIntoView(true);", el)
-            human_sleep(0.5, 1.5)
-            el.click()
-        except Exception as e:
-            logger.error(f"⚠️ Failed safe click on {xpath}: {e}")
-
-    def handle_cookie_popup(self):
-        xpaths = [
-            "//*[text()='Allow all cookies']",
-            "//button[contains(text(),'Allow all cookies')]",
-            "//button[contains(text(),'Accept All')]",
-        ]
-        for xpath in xpaths:
-            try:
-                el = WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.XPATH, xpath)))
-                self.driver.execute_script("arguments[0].scrollIntoView(true);", el)
-                human_sleep(0.5, 1.5)
-                el.click()
-                logger.success("✅ Cookie popup accepted.")
-                return
-            except:
-                continue
-        logger.warning("⚠️ Cookie popup not found or already handled.")
-
-    def wait_for_captcha_and_manual_solve(self):
-        try:
-            wait = WebDriverWait(self.driver, 8)
-            wait.until(EC.presence_of_element_located((By.CLASS_NAME, "g-recaptcha")))
-            print("⚠️ Captcha detected! Please solve it manually, then press Enter to continue...")
-            input()
-        except:
-            pass
 
     def create_account(self):
         d = self.driver
         d.get("https://www.instagram.com/accounts/signup/email/")
         human_sleep(2)
+        # Handle cookie popup
+        try:
+            ck_button = WebDriverWait(d, 6).until(
+                EC.element_to_be_clickable((By.XPATH, "//*[contains(text(),'all cookies')]"))
+            )
+            ck_button.click()
+            human_sleep(1)
+        except:
+            pass
 
-        self.handle_cookie_popup()
-        human_sleep(1)
-
-        email_field = WebDriverWait(d, 15).until(
-            EC.presence_of_element_located((By.XPATH, "//input[@aria-label='Email']")),
+        email_field = WebDriverWait(d, 20).until(
+            EC.presence_of_element_located((By.XPATH, "//input[@aria-label='Email']"))
         )
-        human_typing(email_field, self.phone_number)
-
+        human_typing(email_field, self.email)
         next_btn = WebDriverWait(d, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']")),
+            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']"))
         )
         next_btn.click()
         human_sleep(2)
         logger.success("✅ Email entered and Next clicked.")
 
+        # Verification code
         if self.token:
-            code = None
-            start_time = time.time()
-            timeout = 180
-
-            while time.time() - start_time < timeout:
-                # Maildrop: کد را از طریق Selenium می‌گیریم
-                latest_code = wait_for_mailtm_code(self.token, d, timeout=8, poll_interval=3)
-                if latest_code:
-                    code = latest_code
-                    break
-                human_sleep(1, 2)
-
+            code = wait_for_mailtm_code(self.token)
             if code:
-                code_field = WebDriverWait(d, 15).until(
-                    EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Confirmation code']")),
+                code_field = WebDriverWait(d, 20).until(
+                    EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Confirmation code']"))
                 )
                 code_field.clear()
                 human_typing(code_field, code)
                 next_btn2 = WebDriverWait(d, 10).until(
-                    EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']")),
+                    EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']"))
                 )
                 human_sleep(1, 2)
                 next_btn2.click()
-                logger.success(f"✅ Confirmation code {code} entered and Next clicked.")
+                logger.success("✅ Confirmation code entered and Next clicked.")
             else:
-                logger.error("❌ No valid verification code received in time!")
+                logger.error("❌ Did not receive verification code. Try again.")
+                return
 
-        # 🔹 Password
-        password_field = WebDriverWait(d, 15).until(
-            EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Password']")),
-        )
-        human_typing(password_field, self.password)
+        # Continue registration
+        WebDriverWait(d, 20).until(
+            EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Password']"))
+        ).send_keys(self.password)
         next_btn = WebDriverWait(d, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']")),
+            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']"))
         )
         next_btn.click()
-        human_sleep(1.5, 2.5)
-
-        # 🔹 Birthday
-        birthday_field = WebDriverWait(d, 15).until(
-            EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Birthday']")),
-        )
-        birthday_field.clear()
-        birthday_field.send_keys(f"{int(self.year)}-{int(self.month):02}-{int(self.day):02}")
-        next_btn = WebDriverWait(d, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']")),
-        )
-        next_btn.click()
-        human_sleep(1.5, 2.5)
-
-        # 🔹 Full Name
-        fullname_field = WebDriverWait(d, 15).until(
-            EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Full name']")),
-        )
-        human_typing(fullname_field, self.fullname)
-        next_btn = WebDriverWait(d, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']")),
-        )
-        next_btn.click()
-        human_sleep(1.5, 2.5)
-
-        # 🔹 Username
-        username_field = WebDriverWait(d, 15).until(
-            EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Username']")),
-        )
-        username_field.clear()
-        human_typing(username_field, self.username)
-        next_btn = WebDriverWait(d, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']")),
-        )
-        next_btn.click()
-        human_sleep(1.5, 2.5)
-
-        iagree_btn = WebDriverWait(d, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='I agree']")),
-        )
-        iagree_btn.click()
         human_sleep(2)
 
-        logger.success("✅ Account setup steps completed!")
+        bday = f"{int(self.year)}-{int(self.month):02}-{int(self.day):02}"
+        bd_field = WebDriverWait(d, 15).until(
+            EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Birthday']"))
+        )
+        bd_field.clear()
+        bd_field.send_keys(bday)
+        next_btn = WebDriverWait(d, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']"))
+        )
+        next_btn.click()
+        human_sleep(2)
+
+        WebDriverWait(d, 15).until(
+            EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Full name']"))
+        ).send_keys(self.fullname)
+        next_btn = WebDriverWait(d, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']"))
+        )
+        next_btn.click()
+        human_sleep(2)
+
+        WebDriverWait(d, 15).until(
+            EC.element_to_be_clickable((By.XPATH, "//input[@aria-label='Username']"))
+        ).send_keys(self.username)
+        next_btn = WebDriverWait(d, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//div[@role='button' and @aria-label='Next']"))
+        )
+        next_btn.click()
+        human_sleep(2)
+        logger.success("✅ All registration steps finished successfully.")
 
     def close(self):
         try:
@@ -243,8 +164,7 @@ class InstagramBot:
         except:
             pass
 
-
 if __name__ == "__main__":
-    logger.success("🚀 Starting Instagram account creation...")
+    logger.success("🚀 Starting Instagram account creation bot...")
     bot = InstagramBot()
     bot.create_account()
