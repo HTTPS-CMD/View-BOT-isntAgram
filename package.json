@@ -1,0 +1,16 @@
+{
+  "name": "view-bot-isntagram",
+  "version": "1.0.0",
+  "description": "A Python automation tool that simulates viewing Instagram stories or content.   This project is intended **for educational purposes only** and should be used responsibly, following Instagram's terms of service.",
+  "main": "login-instagram.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "node-notifier": "^10.0.1",
+    "selenium-webdriver": "^4.36.0"
+  }
+}
