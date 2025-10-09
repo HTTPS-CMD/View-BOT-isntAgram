@@ -12,5 +12,13 @@
   "dependencies": {
     "node-notifier": "^10.0.1",
     "selenium-webdriver": "^4.36.0"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HTTPS-CMD/View-BOT-isntAgram.git"
+  },
+  "bugs": {
+    "url": "https://github.com/HTTPS-CMD/View-BOT-isntAgram/issues"
+  },
+  "homepage": "https://github.com/HTTPS-CMD/View-BOT-isntAgram#readme"
 }
